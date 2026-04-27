@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2025 Final Project: Sorting Algorithm Visualizer</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configure Tailwind for custom styles and Inter font -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f9; /* Light background */
+        }
+        .algorithm-bar {
+            transition: all 0.1s ease-in-out;
+        }
+        /* Custom scrollbar for better look */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #3b82f6;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div id="app" class="max-w-7xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold text-gray-800">Sorting Algorithm Visualizer</h1>
+            <p class="text-xl text-blue-600 mt-2 font-medium" id="current-algorithm-display">Select an Algorithm to Begin</p>
+        </header>
+
+        <!-- Main Visualization Area -->
+        <div class="bg-white shadow-2xl rounded-xl p-2 md:p-6 mb-8 border-4 border-blue-100">
+            <canvas id="visualizationCanvas" class="w-full bg-gray-50 rounded-lg border-2 border-gray-200" height="400"></canvas>
+            <p id="status-message" class="text-center mt-3 text-lg font-semibold text-gray-700">Ready to Visualize</p>
+        </div>
+
+        <!-- Controls Section -->
+        <div class="bg-white shadow-2xl rounded-xl p-4 md:p-6 grid grid-cols-1 lg:grid-cols-4 gap-6 border-4 border-blue-100">
+
+            <!-- 1. Array Size Control -->
+            <div class="p-3 bg-blue-50 rounded-lg shadow-inner">
+                <label for="arraySize" class="block text-sm font-medium text-gray-700 mb-2">Array Size (<span id="arraySizeValue">50</span> bars)</label>
+                <input type="range" id="arraySize" min="10" max="250" value="50" class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- 2. Speed Control -->
+            <div class="p-3 bg-blue-50 rounded-lg shadow-inner">
+                <label for="speed" class="block text-sm font-medium text-gray-700 mb-2">Animation Speed (<span id="speedValue">10</span> ms delay)</label>
+                <input type="range" id="speed" min="1" max="100" value="10" class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- 3. Generate Button -->
+            <button id="generateArray" class="lg:col-span-2 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg transform transition duration-150 hover:scale-[1.02] active:scale-[0.98]">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7.0H7a1 1 0 010 2H4a1 1 0 01-1-1V4a1 1 0 011-1zm3 17a1 1 0 01-1-1v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 111.885-.666A5.002 5.002 0 0014.001 13.0H13a1 1 0 010-2h3a1 1 0 011 1v4a1 1 0 01-1 1z" clip-rule="evenodd" /></svg>
+                Generate New Array
+            </button>
+
+            <!-- 4. Sorting Algorithm Buttons -->
+            <div class="lg:col-span-4 grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+                <button data-algo="bubble" class="sort-btn bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 rounded-lg shadow-md transition duration-150 transform hover:scale-[1.02]">Bubble Sort</button>
+                <button data-algo="insertion" class="sort-btn bg-purple-500 hover:bg-purple-600 text-white font-semibold py-3 rounded-lg shadow-md transition duration-150 transform hover:scale-[1.02]">Insertion Sort</button>
+                <button data-algo="quick" class="sort-btn bg-red-500 hover:bg-red-600 text-white font-semibold py-3 rounded-lg shadow-md transition duration-150 transform hover:scale-[1.02]">Quick Sort</button>
+                <button data-algo="merge" class="sort-btn bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 rounded-lg shadow-md transition duration-150 transform hover:scale-[1.02]">Merge Sort</button>
+            </div>
+            <div class="lg:col-span-4 grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+                <button id="resetButton" class="w-full bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 rounded-lg shadow-md transition duration-150 transform hover:scale-[1.02]">Reset/Stop</button>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        // Global State Variables
+        const canvas = document.getElementById('visualizationCanvas');
+        const ctx = canvas.getContext('2d');
+        let array = [];
+        let arraySize = 50;
+        let animationSpeed = 10; // in ms
+        let isSorting = false;
+        let stopSignal = false; // Flag to allow stopping asynchronous operations
+        let currentAlgorithm = null;
+
+        // Colors for Visualization
+        const COLORS = {
+            DEFAULT: '#3b82f6', // blue-500
+            COMPARING: '#f87171', // red-400
+            SWAPPING: '#fb923c', // orange-400
+            SORTED: '#34d399', // green-400
+            PIVOT: '#a855f7', // purple-500
+            MERGING: '#facc15', // yellow-400
+        };
+
+        // State Array: Tracks the color/state of each bar
+        // Structure: [{ value: 45, color: COLORS.DEFAULT }, ...]
+        let arrayState = [];
+
+        // Utility function for pausing the visualization
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        // --- Core Visualization Function ---
+        function drawArray(highlightIndices = {}) {
+            // Check for stop signal before drawing
+            if (stopSignal && isSorting) return;
+
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const maxVal = Math.max(...array.map(item => item.value));
+            const barWidth = canvas.width / array.length;
+
+            for (let i = 0; i < array.length; i++) {
+                const bar = array[i];
+                // Determine bar height based on value (max 90% of canvas height)
+                const barHeight = (bar.value / maxVal) * (canvas.height * 0.9);
+                const x = i * barWidth;
+                const y = canvas.height - barHeight;
+
+                // Determine color
+                let color = bar.color || COLORS.DEFAULT;
+
+                // Apply temporary highlight colors from the current step
+                if (highlightIndices.comparing && highlightIndices.comparing.includes(i)) {
+                    color = COLORS.COMPARING;
+                } else if (highlightIndices.swapping && highlightIndices.swapping.includes(i)) {
+                    color = COLORS.SWAPPING;
+                } else if (highlightIndices.pivot === i) {
+                    color = COLORS.PIVOT;
+                } else if (highlightIndices.merging && highlightIndices.merging.includes(i)) {
+                    color = COLORS.MERGING;
+                }
+
+                ctx.fillStyle = color;
+                // Draw the bar with a small vertical gap (height - 2) and slightly rounded top
+                ctx.fillRect(x + 1, y, barWidth - 2, barHeight);
+            }
+        }
+
+        // --- Array Generation and Control ---
+        function generateNewArray() {
+            if (isSorting) {
+                document.getElementById('status-message').textContent = "Cannot generate while sorting. Press Reset/Stop first.";
+                return;
+            }
+            array = [];
+            for (let i = 0; i < arraySize; i++) {
+                // Generate values between 10 and 400
+                const value = Math.floor(Math.random() * (400 - 10 + 1)) + 10;
+                array.push({
+                    value: value,
+                    color: COLORS.DEFAULT,
+                });
+            }
+            stopSignal = false;
+            isSorting = false;
+            document.getElementById('status-message').textContent = "Ready to Visualize";
+            document.getElementById('current-algorithm-display').textContent = "Select an Algorithm to Begin";
+            enableControls(true);
+            drawArray();
+        }
+
+        function enableControls(enabled) {
+            document.querySelectorAll('.sort-btn, #generateArray, #arraySize, #speed').forEach(el => {
+                el.disabled = !enabled;
+                if (enabled) {
+                    el.classList.remove('opacity-50', 'cursor-not-allowed');
+                } else {
+                    el.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            });
+        }
+
+        function resetVisualization() {
+            if (isSorting) {
+                stopSignal = true; // Signal the async function to stop
+                document.getElementById('status-message').textContent = "Stopping...";
+                // After a short delay, reset the state completely
+                setTimeout(() => {
+                    isSorting = false;
+                    stopSignal = false;
+                    generateNewArray();
+                }, 100);
+            } else {
+                generateNewArray();
+            }
+        }
+
+        async function finalizeSort(algorithmName) {
+            // Apply sorted color animation
+            for (let i = 0; i < array.length; i++) {
+                if (stopSignal) break;
+                array[i].color = COLORS.SORTED;
+                drawArray();
+                await sleep(Math.max(1, 1000 / array.length)); // Fast final sweep
+            }
+            isSorting = false;
+            document.getElementById('status-message').textContent = stopSignal ?
+                `Sorting stopped for ${algorithmName}.` :
+                `${algorithmName} completed successfully in ${array.length} steps/swaps (estimated).`;
+
+            enableControls(true);
+            stopSignal = false;
+        }
+
+        // --- Sorting Algorithm Implementations (ASYNC) ---
+
+        // 1. Bubble Sort
+        async function bubbleSort(arr) {
+            for (let i = 0; i < arr.length; i++) {
+                for (let j = 0; j < arr.length - i - 1; j++) {
+                    if (stopSignal) return;
+
+                    // Highlight comparing elements
+                    drawArray({ comparing: [j, j + 1] });
+                    await sleep(animationSpeed);
+
+                    if (arr[j].value > arr[j + 1].value) {
+                        // Highlight swapping elements
+                        drawArray({ swapping: [j, j + 1] });
+                        await sleep(animationSpeed);
+
+                        // Swap
+                        [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];
+
+                        // Redraw after swap
+                        drawArray({ swapping: [j, j + 1] });
+                    }
+                }
+                // Mark the largest element as sorted
+                arr[arr.length - 1 - i].color = COLORS.SORTED;
+                drawArray();
+            }
+        }
+
+        // 2. Insertion Sort
+        async function insertionSort(arr) {
+            for (let i = 1; i < arr.length; i++) {
+                if (stopSignal) return;
+
+                let current = arr[i];
+                let j = i - 1;
+
+                // Highlight the element being inserted
+                arr[i].color = COLORS.PIVOT;
+                drawArray({ pivot: i });
+                await sleep(animationSpeed * 3);
+
+                while (j >= 0 && arr[j].value > current.value) {
+                    if (stopSignal) return;
+
+                    // Shift elements
+                    arr[j + 1] = arr[j];
+                    arr[j].color = COLORS.COMPARING;
+                    drawArray({ comparing: [j] });
+                    await sleep(animationSpeed);
+                    arr[j].color = COLORS.DEFAULT;
+
+                    j--;
+                }
+                // Place the current element in the correct position
+                arr[j + 1] = current;
+                current.color = COLORS.SORTED;
+                drawArray({ pivot: j + 1 });
+                await sleep(animationSpeed);
+            }
+        }
+
+        // 3. Quick Sort
+        async function quickSort(arr, low = 0, high = arr.length - 1) {
+            if (low < high) {
+                if (stopSignal) return;
+                let pi = await partition(arr, low, high);
+                await quickSort(arr, low, pi - 1);
+                await quickSort(arr, pi + 1, high);
+            }
+            // Base case: Mark all elements as sorted once recursion unwinds
+            if (low >= 0 && high < arr.length) {
+                for (let i = low; i <= high; i++) {
+                    arr[i].color = COLORS.SORTED;
+                }
+            }
+        }
+
+        async function partition(arr, low, high) {
+            let pivot = arr[high];
+            let i = low - 1;
+
+            // Highlight the pivot
+            arr[high].color = COLORS.PIVOT;
+
+            for (let j = low; j < high; j++) {
+                if (stopSignal) return;
+                arr[j].color = COLORS.COMPARING;
+                drawArray({ pivot: high, comparing: [j] });
+                await sleep(animationSpeed);
+
+                if (arr[j].value < pivot.value) {
+                    i++;
+
+                    // Swap arr[i] and arr[j]
+                    drawArray({ swapping: [i, j], pivot: high });
+                    await sleep(animationSpeed);
+
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+                // Reset comparison color
+                arr[j].color = COLORS.DEFAULT;
+                drawArray({ pivot: high });
+            }
+
+            // Swap arr[i+1] and arr[high] (pivot)
+            drawArray({ swapping: [i + 1, high] });
+            await sleep(animationSpeed * 3);
+            [arr[i + 1], arr[high]] = [arr[high], arr[i + 1]];
+            arr[i + 1].color = COLORS.SORTED; // Final position of pivot
+            drawArray();
+
+            return i + 1;
+        }
+
+        // 4. Merge Sort (Non-in-place for visualization simplicity, uses auxiliary array)
+        async function mergeSort(arr, start = 0, end = arr.length - 1) {
+            if (start >= end) {
+                // Base case: mark as sorted
+                if (start >= 0 && start < arr.length) arr[start].color = COLORS.SORTED;
+                return;
+            }
+            if (stopSignal) return;
+
+            const mid = Math.floor((start + end) / 2);
+            await mergeSort(arr, start, mid);
+            await mergeSort(arr, mid + 1, end);
+            await merge(arr, start, mid, end);
+        }
+
+        async function merge(arr, start, mid, end) {
+            const left = arr.slice(start, mid + 1);
+            const right = arr.slice(mid + 1, end + 1);
+            let i = 0, j = 0, k = start;
+
+            while (i < left.length && j < right.length) {
+                if (stopSignal) return;
+
+                // Highlight merging section
+                let mergingIndices = [];
+                for (let idx = start; idx <= end; idx++) mergingIndices.push(idx);
+
+                drawArray({ merging: mergingIndices, comparing: [start + i, mid + 1 + j] });
+                await sleep(animationSpeed);
+
+                if (left[i].value <= right[j].value) {
+                    arr[k] = left[i];
+                    i++;
+                } else {
+                    arr[k] = right[j];
+                    j++;
+                }
+                // Mark the newly placed element as sorted (temporarily until the final pass)
+                arr[k].color = COLORS.SORTED;
+                drawArray({ merging: mergingIndices });
+                await sleep(animationSpeed);
+                arr[k].color = COLORS.DEFAULT; // Reset for next merge step
+                k++;
+            }
+
+            // Copy remaining elements of left[]
+            while (i < left.length) {
+                if (stopSignal) return;
+                arr[k++] = left[i++];
+                drawArray();
+                await sleep(animationSpeed / 2);
+            }
+            // Copy remaining elements of right[]
+            while (j < right.length) {
+                if (stopSignal) return;
+                arr[k++] = right[j++];
+                drawArray();
+                await sleep(animationSpeed / 2);
+            }
+
+            // Final colors for the merged segment
+            for (let idx = start; idx <= end; idx++) {
+                arr[idx].color = COLORS.DEFAULT;
+            }
+            drawArray();
+        }
+
+        // --- Event Handlers and Initialization ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set initial canvas size dynamically
+            canvas.width = canvas.offsetWidth;
+            canvas.height = 400; // Fixed height
+
+            // 1. Initial array generation
+            generateNewArray();
+
+            // 2. Control listeners
+            const arraySizeSlider = document.getElementById('arraySize');
+            const arraySizeValueSpan = document.getElementById('arraySizeValue');
+            const speedSlider = document.getElementById('speed');
+            const speedValueSpan = document.getElementById('speedValue');
+
+            arraySizeSlider.addEventListener('input', (e) => {
+                arraySize = parseInt(e.target.value);
+                arraySizeValueSpan.textContent = arraySize;
+                if (!isSorting) generateNewArray();
+            });
+
+            speedSlider.addEventListener('input', (e) => {
+                animationSpeed = parseInt(e.target.value);
+                speedValueSpan.textContent = animationSpeed;
+            });
+
+            document.getElementById('generateArray').addEventListener('click', generateNewArray);
+            document.getElementById('resetButton').addEventListener('click', resetVisualization);
+
+            // 3. Sorting button listeners
+            document.querySelectorAll('.sort-btn').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    if (isSorting) {
+                        document.getElementById('status-message').textContent = "A sort is already running! Press Reset/Stop first.";
+                        return;
+                    }
+
+                    // Reset all bar colors to default before starting a new sort
+                    array.forEach(bar => bar.color = COLORS.DEFAULT);
+
+                    const algo = e.target.getAttribute('data-algo');
+                    let algorithmFunc;
+                    let algorithmName;
+
+                    // Set status
+                    isSorting = true;
+                    stopSignal = false;
+                    enableControls(false); // Disable controls during sorting
+
+                    switch (algo) {
+                        case 'bubble':
+                            algorithmFunc = bubbleSort;
+                            algorithmName = 'Bubble Sort';
+                            break;
+                        case 'insertion':
+                            algorithmFunc = insertionSort;
+                            algorithmName = 'Insertion Sort';
+                            break;
+                        case 'quick':
+                            algorithmFunc = quickSort;
+                            algorithmName = 'Quick Sort';
+                            break;
+                        case 'merge':
+                            algorithmFunc = mergeSort;
+                            algorithmName = 'Merge Sort';
+                            break;
+                        default:
+                            isSorting = false;
+                            enableControls(true);
+                            return;
+                    }
+
+                    document.getElementById('current-algorithm-display').textContent = algorithmName;
+                    document.getElementById('status-message').textContent = `Running ${algorithmName}...`;
+                    drawArray(); // Initial draw before sort starts
+
+                    // Execute the selected algorithm
+                    await algorithmFunc(array);
+
+                    // Finalize cleanup and victory animation
+                    if (!stopSignal) {
+                        await finalizeSort(algorithmName);
+                    } else {
+                        isSorting = false;
+                        enableControls(true);
+                        stopSignal = false; // Clear flag after stopping
+                        document.getElementById('status-message').textContent = `Sorting halted by user. Ready to restart.`;
+                    }
+                });
+            });
+
+            // Handle window resize to keep canvas responsive
+            window.addEventListener('resize', () => {
+                canvas.width = canvas.offsetWidth;
+                drawArray();
+            });
+
+            // Initial draw
+            drawArray();
+        });
+
+    </script>
+</body>
+</html>
